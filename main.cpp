@@ -1,150 +1,12 @@
 #include <Windows.h>
-#include <cstdint>
-#include <string>
-#include <format>
-#include <d3d12.h>
-#include <dxgi1_6.h>
-#include <cassert>
-#pragma comment(lib,"d3d12.lib")
-#pragma comment(lib,"dxgi.lib")
+#include "System.h"
 
-// ウインドウプロシージャ
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpalam) {
-
-	// メッセージに応じてゲーム固有の処理
-	switch (msg) {
-		// ウインドウが破棄された
-	case WM_DESTROY:
-		// OSに対してアプリの終了を伝える
-		PostQuitMessage(0);
-		return 0;
-	}
-
-	// 標準のメッセージ処理を行う
-	return DefWindowProc(hwnd, msg, wparam, lpalam);
-}
-
-void Log(const std::string& message) {
-
-	OutputDebugStringA(message.c_str());
-}
-
-void Log(const std::wstring& message) {
-	OutputDebugStringW(message.c_str());
-}
-
-std::wstring ConvertString(const std::string& str) {
-    if (str.empty()) {
-        return std::wstring();
-    }
-
-    auto sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, reinterpret_cast<const char*>(&str[0]), static_cast<int>(str.size()), NULL, 0);
-    if (sizeNeeded == 0) {
-        return std::wstring();
-    }
-    std::wstring result(sizeNeeded, 0);
-    MultiByteToWideChar(CP_UTF8, 0, reinterpret_cast<const char*>(&str[0]), static_cast<int>(str.size()), &result[0], sizeNeeded);
-    return result;
-}
-
-std::string ConvertString(const std::wstring& str) {
-    if (str.empty()) {
-        return std::string();
-    }
-
-    auto sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), NULL, 0, NULL, NULL);
-    if (sizeNeeded == 0) {
-        return std::string();
-    }
-    std::string result(sizeNeeded, 0);
-    WideCharToMultiByte(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), result.data(), sizeNeeded, NULL, NULL);
-    return result;
-}
+const char kWindowTitle[] = "LE2B_11_コムロ_リュウヘイ";
 
 // Windowsアプリでのエントリーポイント(main関数)
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)	{
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
-	WNDCLASS wc{};
-	// ウインドウプロシージャ
-	wc.lpfnWndProc = WindowProc;
-	// ウインドウクラス名
-	wc.lpszClassName = L"CG2WindowClass";
-	// インスタンスハンドル
-	wc.hInstance = GetModuleHandle(nullptr);
-	//カーソル
-	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-
-	// ウインドウクラスを登録する
-	RegisterClass(&wc);
-
-	// クライアント領域のサイズ
-	const int32_t kClientWidth = 1280;
-	const int32_t kClientHeight = 720;
-
-	// ウインドウサイズを表す構造体にクライアント領域を入れる
-	RECT wrc = { 0,0,kClientWidth,kClientHeight };
-
-	// クライアント領域を元に実際のサイズにwrcを変更してもらう
-	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
-
-	// ウインドの生成
-	HWND hwnd = CreateWindow(
-		wc.lpszClassName,
-		L"CG2",
-		WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		wrc.right - wrc.left,
-		wrc.bottom - wrc.top,
-		nullptr,
-		nullptr,
-		wc.hInstance,
-		nullptr
-	);
-
-	// ウインドウを表示する
-	ShowWindow(hwnd, SW_SHOW);
-
-	//DXGIファクトリーの作成
-	IDXGIFactory7* dxgiFactory = nullptr;
-	HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
-	assert(SUCCEEDED(hr));
-
-	IDXGIAdapter4* useAdapter = nullptr;
-
-	for (UINT i = 0; dxgiFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-		IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; i++) {
-		DXGI_ADAPTER_DESC3 adaperDesc{};
-		hr = useAdapter->GetDesc3(&adaperDesc);
-		assert(SUCCEEDED(hr));
-
-		if (!(adaperDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE)) {
-			Log(std::format(L"Use Adapter:{}\n", adaperDesc.Description));
-			break;
-		}
-		useAdapter = nullptr;
-	}
-
-	assert(useAdapter != nullptr);
-
-	ID3D12Device* device = nullptr;
-
-	D3D_FEATURE_LEVEL featureLevels[] = {
-		D3D_FEATURE_LEVEL_12_2,D3D_FEATURE_LEVEL_12_0
-	};
-	const char* featureLevelStrings[] = { "12.2,","12.1","12.0" };
-
-	for (size_t i = 0; i < _countof(featureLevels); ++i) {
-		hr = D3D12CreateDevice(useAdapter, featureLevels[i], IID_PPV_ARGS(&device));
-
-		if (SUCCEEDED(hr)) {
-			Log(std::format("FeatureLevel : {}\n", featureLevelStrings[i]));
-			break;
-		}
-	}
-
-	assert(device != nullptr);
-	Log("complete create D3D12Device!!!\n");
+	System::Initialize(kWindowTitle, 1280, 720);
 
 	MSG msg{};
 	// ウインドウのxボタンが押されるまでループ
@@ -154,14 +16,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)	{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		} else {
-			
+
 			// ゲームの処理
 
-			// 文字列を格納する
-			std::string str0{ "STRING!!!" };
-
-			// 整数を文字列にする
-			std::string str1{ std::to_string(10) };
 		}
 	}
 
