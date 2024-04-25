@@ -5,6 +5,9 @@
 #include <string>
 #include <format>
 #include <cassert>
+#include "Matrix4x4.h"
+
+#include "MyMath.h"
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -18,16 +21,9 @@
 
 const char kWindowTitle[] = "LE2B_11_コムロ_リュウヘイ";
 
-/// <summary>
-/// 4次元ベクトル
-/// </summary>
-struct Vector4 final {
-	float x;
-	float y;
-	float z;
-	float w;
-};
-
+/*///////////////////////
+		Log関数
+*////////////////////////
 void Log(const std::string& message) {
 
 	OutputDebugStringA(message.c_str());
@@ -161,7 +157,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 /*///////////////////////
 	Resource作成の関数化
 *////////////////////////
-ID3D12Resource* CreateBufferResources(ID3D12Device* device, size_t sizeInBytes) {
+ID3D12Resource* CreateBufferResource(ID3D12Device* device, size_t sizeInBytes) {
 	HRESULT hr;
 
 	/*///////////////////////
@@ -191,7 +187,6 @@ ID3D12Resource* CreateBufferResources(ID3D12Device* device, size_t sizeInBytes) 
 
 	return vertexResource;
 }
-
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -456,10 +451,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// RootParameter作成
-	D3D12_ROOT_PARAMETER rootParameters[1] = {};
+	D3D12_ROOT_PARAMETER rootParameters[2] = {};
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0; // レジスタ番号0とバインド
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // VertexShaderで使う
+	rootParameters[1].Descriptor.ShaderRegister = 0; // レジスタ番号0を使う
 	descriptionRootSignature.pParameters = rootParameters; // ルートパラメータ配列へポインタ
 	descriptionRootSignature.NumParameters = _countof(rootParameters); // 配列の長さ
 
@@ -541,7 +539,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	///*///////////////////////
 	//	VertexResourceを生成
 	//*////////////////////////
-	ID3D12Resource* vertexResource = CreateBufferResources(device, sizeof(Vector4) * 3);
+	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(Vector4) * 3);
 
 	/*///////////////////////
 		VertexBufferViewを生成
@@ -567,13 +565,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexData[2] = { 0.5f,-0.5f,0.0f,1.0f };
 
 	// マテリアル用のリソースを作る
-	ID3D12Resource* materialResource = CreateBufferResources(device, sizeof(Vector4));
+	ID3D12Resource* materialResource = CreateBufferResource(device, sizeof(Vector4));
 	// マテリアルにデータを書き込む
 	Vector4* materialData = nullptr;
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 	// 今回は赤を書きこむ
 	*materialData = Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+
+	
+	// wvp用のリソースを作る
+	ID3D12Resource* wvpResouce = CreateBufferResource(device, sizeof(Matrix4x4));
+	// データを書き込む
+	Matrix4x4* wvpData = nullptr;
+	// 書き込むためのアドレスを取得
+	wvpResouce->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
+	// 単位行列を書き込んでおく
+	*wvpData = MakeIdentity4x4();
+
 
 	// ビューポート
 	D3D12_VIEWPORT viewPort{};
@@ -594,6 +603,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.bottom = kWindowHeight;
 
 
+	struct Transform {
+
+		Vector3 scale;
+		Vector3 rotate;
+		Vector3 translate;
+	};
+
+	Transform transform{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
+
+	Transform cameraTransform{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,-5.0f} };
+
 	/*System::Initialize(kWindowTitle, 1280, 720);*/
 
 	MSG msg{};
@@ -605,6 +625,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			DispatchMessage(&msg);
 		} else {
 			// ゲームの処理
+
+			transform.rotate.y += 0.01f;
+
+			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
+			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+			Matrix4x4 viewMatrix = Inverse4x4(cameraMatrix);
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
+			Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+			*wvpData = worldViewProjectionMatrix;
 
 			typedef struct D3D12_CPU_DESCROPTOR_HANDLE {
 				SIZE_T ptr;
@@ -656,6 +685,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			// マテリアルCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
+			// wvp用のCBufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(1, wvpResouce->GetGPUVirtualAddress());
 			// 描画
 			commandList->DrawInstanced(3, 1, 0, 0);
 
