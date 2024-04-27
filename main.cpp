@@ -748,9 +748,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			// 実際のCommandListのImGuiの描画コマンドを積む
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
-			// 実際のCommandListのImGuiの描画コマンドを積む
-			//ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
-
 			// 画面に描く処理はすべて終わり、画面に移すので状態を遷移
 			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
