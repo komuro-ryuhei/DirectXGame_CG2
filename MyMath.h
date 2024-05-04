@@ -2,6 +2,14 @@
 #include "Matrix4x4.h"
 
 /// <summary>
+/// 2次元ベクトル
+/// </summary>
+struct Vector2 final {
+	float x;
+	float y;
+};
+
+/// <summary>
 /// 3次元ベクトル
 /// </summary>
 struct Vector3 final {
