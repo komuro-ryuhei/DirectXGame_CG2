@@ -1074,9 +1074,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	commandAllocator->Release();
 	commandQueue->Release();
 	infoQueue->Release();
+	dxgiFactory->Release();
 	device->Release();
 	useAdapter->Release();
-	dxgiFactory->Release();
+
 
 #ifdef _DEBUG
 	debugController->Release();
