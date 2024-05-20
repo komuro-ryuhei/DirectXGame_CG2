@@ -1,5 +1,7 @@
 #pragma once
 #include "Matrix4x4.h"
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 /// <summary>
 /// 2次元ベクトル
