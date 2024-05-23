@@ -975,12 +975,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		for (uint32_t lonIndex = 0; lonIndex <= kSubdivision; lonIndex++) {
 			uint32_t baseIndex = (latIndex * (kSubdivision) + lonIndex) * 6;
 
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex)] = baseIndex;         // 0
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 1] = baseIndex + 1; // 1
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 2] = baseIndex + 2; // 2
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 3] = baseIndex + 2; // 3
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 4] = baseIndex + 1; // 4
-			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 5] = baseIndex + 3; // 5
+			// 0
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex)] = baseIndex;
+			// 1
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 1] = baseIndex + 1;
+			// 2
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 2] = baseIndex + 2;
+			// 3
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 3] = baseIndex + 2;
+			// 4
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 4] = baseIndex + 1;
+			// 5
+			indexDataSphere[6 * (latIndex * kSubdivision + lonIndex) + 5] = baseIndex + 3;
 		}
 	}
 
