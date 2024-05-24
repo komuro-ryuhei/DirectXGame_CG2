@@ -9,6 +9,9 @@
 
 #include "MyMath.h"
 
+#include "fstream"
+#include "sstream"
+
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
@@ -343,6 +346,73 @@ D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(Microsoft::WRL::ComPtr<ID3D12
 	handleGPU.ptr += (descriptorSize * index);
 
 	return handleGPU;
+}
+
+struct VertexData {
+	Vector4 position;
+	Vector2 texcoord;
+	Vector3 normal;
+};
+
+struct ModelData {
+	std::vector<VertexData> vertices;
+};
+
+ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filename) {
+
+	ModelData modelData; // 構築するモデルデータ
+	std::vector<Vector4> positions; // 位置
+	std::vector<Vector3> normals; // 法線
+	std::vector<Vector2> texcoords; // テクスチャ座標
+	std::string line; // ファイルから読んだ1行を格納するもの
+
+	std::ifstream file(directoryPath + "/" + filename); // ファイルを開く
+	assert(file.is_open());
+
+	// ファイルを読み、ModelDataを構築
+	while (std::getline(file, line)) {
+		std::string identifer;
+		std::istringstream s(line);
+		s >> identifer; // 先頭の識別子を読む
+
+		// identiferに応じた処理
+		if (identifer == "v") {
+			Vector4 position;
+			s >> position.x >> position.y >> position.z;
+			position.w = 1.0f;
+			positions.push_back(position);
+		} else if (identifer == "vt") {
+			Vector2 texcoord;
+			s >> texcoord.x >> texcoord.y;
+			texcoords.push_back(texcoord);
+		} else if (identifer == "vn") {
+			Vector3 normal;
+			s >> normal.x >> normal.y >> normal.z;
+			normals.push_back(normal);
+		} else if (identifer == "f") {
+			// 面は三角形限定
+			for (int32_t faceVertex = 0; faceVertex < 3; ++faceVertex) {
+				std::string vertexDefinition;
+				s >> vertexDefinition;
+				// 頂点の要素へのIndexは「位置/UV/法線」で格納されているので、分解してIndexを取得する
+				std::istringstream v(vertexDefinition);
+				uint32_t elementIndices[3];
+				for (uint32_t element = 0; element < 3; ++element) {
+					std::string index;
+					std::getline(v, index, '/'); // 区切りでインデックスを読んでいく
+					elementIndices[element] = std::stoi(index);
+				}
+				// 要素へのIndexから、実際の要素の値を取得して、頂点を構築する
+				Vector4 position = positions[elementIndices[0] - 1];
+				Vector2 texcoord = texcoords[elementIndices[1] - 1];
+				Vector3 normal = normals[elementIndices[2] - 1];
+				VertexData vertex = { position,texcoord,normal };
+				modelData.vertices.push_back(vertex);
+			}
+		}
+	}
+
+	return modelData;
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -788,11 +858,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//	VertexResourceを生成
 	//*//////////////////////////////////////////////////////////////////////////////
 
-	struct VertexData {
+	/*struct VertexData {
 		Vector4 position;
 		Vector2 texcoord;
 		Vector3 normal;
-	};
+	};*/
 
 	struct Material {
 		Vector4 color;
@@ -821,6 +891,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// 分割数
 	uint32_t kSubdivision = 16;
+
+	ModelData modelData = LoadOBJFile("Resources", "plane.obj");
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(VertexData) * 6);
 
@@ -996,6 +1068,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialData->enableLighting = true;
 	materialData->uvTransform = MakeIdentity4x4();
+
+
+	// マテリアル用のリソースを作る
+	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceSphere = CreateBufferResource(device.Get(), sizeof(Material));
+	// マテリアルにデータを書き込む
+	Material* materialDataSphere = nullptr;
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSphere));
+	// 白を書きこむ
+	materialDataSphere->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	materialDataSphere->enableLighting = true;
+	materialDataSphere->uvTransform = MakeIdentity4x4();
 
 
 	// Sprite用のマテリアルリソースを作る
@@ -1338,7 +1422,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			// マテリアルCBufferの場所を設定
-			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
+			commandList->SetGraphicsRootConstantBufferView(0, materialResourceSphere->GetGPUVirtualAddress());
 			// wvp用のCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResouce->GetGPUVirtualAddress());
 			// 
