@@ -472,6 +472,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// COMの初期化
 	CoInitializeEx(0, COINIT_MULTITHREADED);
 
+
 	WNDCLASS wc{};
 	// ウインドウプロシージャ
 	wc.lpfnWndProc = WindowProc;
@@ -915,7 +916,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	struct Material {
 		Vector4 color;
-		int32_t enableLighting;
+		bool enableLighting;
 		float padding[3];
 		Matrix4x4 uvTransform;
 	};
@@ -1398,7 +1399,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
 
-			ImGui::SliderInt("useLight", &materialData->enableLighting, 0, 1);
+			ImGui::Checkbox("useLight", &materialData->enableLighting);
 			ImGui::SliderFloat3("LightDirector", &directionalLightData->direction.x, -1.0f, 1.0f);
 			ImGui::ColorEdit4("LightColor", (float*)&directionalLightData->color);
 
