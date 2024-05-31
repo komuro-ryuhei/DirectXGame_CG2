@@ -465,6 +465,29 @@ ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filen
 }
 
 
+// 変数宣言
+D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU1;
+D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2;
+
+// ImGuiのUIを設定する関数
+void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU) {
+	// Texture番号
+	int selectedTextureIndex = 0;
+	// Textureの名前
+	const char* textureNames[] = { "uvChecker", "MonsterBall" };
+	// コンボボックスを表示して、テクスチャを選択する
+	if (ImGui::Combo("Texture", &selectedTextureIndex, textureNames, IM_ARRAYSIZE(textureNames))) {
+		// ユーザーがテクスチャを選択したら、選択されたテクスチャに応じてDescriptor Handleを更新
+		if (selectedTextureIndex == 0) {
+			// 画像1に対応するDescriptor Handleを設定
+			textureSrvHandleGPU = textureSrvHandleGPU1;
+		} else {
+			// 画像2に対応するDescriptor Handleを設定
+			textureSrvHandleGPU = textureSrvHandleGPU2;
+		}
+	}
+}
+
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -1304,10 +1327,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	UploadTextureData(textureResource.Get(), mipImages);
 
 	// 2枚目のTextureを読んで転送する
-	DirectX::ScratchImage mipImages2 = LoadTexture(modelData.material.textureFilePath);
+	DirectX::ScratchImage mipImages2 = LoadTexture("./Resources/monsterBall.png");
 	const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
 	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource2 = CreateTextureResource(device.Get(), metadata2);
 	UploadTextureData(textureResource2.Get(), mipImages2);
+
+
+	// 3枚目のTextureを読んで転送する
+	DirectX::ScratchImage mipImages3 = LoadTexture(modelData.material.textureFilePath);
+	const DirectX::TexMetadata& metadata3 = mipImages3.GetMetadata();
+	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource3 = CreateTextureResource(device.Get(), metadata3);
+	UploadTextureData(textureResource3.Get(), mipImages3);
 
 
 	// metaDataを基にSRVの設定
@@ -1328,13 +1358,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 1);
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 1);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 2);
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 2);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU1 = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 2);
+	textureSrvHandleGPU1 = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 2);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 3);
+	textureSrvHandleGPU2 = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 3);
 
 	// SRVの生成
 	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, textureSrvHandleCPU);
 
-	// SRVの生成
+	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, textureSrvHandleCPU1);
+
 	device->CreateShaderResourceView(textureResource2.Get(), &srvDesc2, textureSrvHandleCPU2);
 
 
@@ -1422,7 +1457,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	bool useMonsterBall = true;
 
+
 	/*System::Initialize(kWindowTitle, 1280, 720);*/
+
 
 	MSG msg{};
 	// ウインドウのxボタンが押されるまでループ
@@ -1456,6 +1493,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::DragFloat3("TriangleScale", &transformTriangle.scale.x, 0.01f);
 			
 			ImGui::DragFloat3("UVTranslate", &uvTransformTriangle.translate.x, 0.01f);
+
+			SetupUI(textureSrvHandleGPU);
 
 			// 指定した深度で画面全体をクリアする
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
