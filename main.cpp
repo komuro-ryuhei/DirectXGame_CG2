@@ -472,19 +472,36 @@ D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2;
 // ImGuiのUIを設定する関数
 void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU) {
 	// Texture番号
-	int selectedTextureIndex = 0;
+	static int textureNum = 0; // 静的変数として宣言して関数呼び出し間で値が保存されるようにする
 	// Textureの名前
 	const char* textureNames[] = { "uvChecker", "MonsterBall" };
+
+	// 現在選択されているアイテムを表示するための文字列を取得
+	const char* currentTexture = textureNames[textureNum];
+
 	// コンボボックスを表示して、テクスチャを選択する
-	if (ImGui::Combo("Texture", &selectedTextureIndex, textureNames, IM_ARRAYSIZE(textureNames))) {
-		// ユーザーがテクスチャを選択したら、選択されたテクスチャに応じてDescriptor Handleを更新
-		if (selectedTextureIndex == 0) {
-			// 画像1に対応するDescriptor Handleを設定
-			textureSrvHandleGPU = textureSrvHandleGPU1;
-		} else {
-			// 画像2に対応するDescriptor Handleを設定
-			textureSrvHandleGPU = textureSrvHandleGPU2;
+	if (ImGui::BeginCombo("Texture", currentTexture)) {
+		// コンボボックスのアイテムをループで生成
+		for (int n = 0; n < IM_ARRAYSIZE(textureNames); n++) {
+			// アイテムが選択されたかどうか
+			bool isSelected = (textureNum == n);
+			if (ImGui::Selectable(textureNames[n], isSelected)) {
+				textureNum = n; // 選択されたアイテムの番号を設定
+			}
+			if (isSelected) {
+				ImGui::SetItemDefaultFocus();
+			}
 		}
+		ImGui::EndCombo();
+	}
+
+	// ユーザーがテクスチャを選択したら、選択されたテクスチャに応じてDescriptor Handleを更新
+	if (textureNum == 0) {
+		// 画像1に対応するDescriptor Handleを設定
+		textureSrvHandleGPU = textureSrvHandleGPU1;
+	} else {
+		// 画像2に対応するDescriptor Handleを設定
+		textureSrvHandleGPU = textureSrvHandleGPU2;
 	}
 }
 
