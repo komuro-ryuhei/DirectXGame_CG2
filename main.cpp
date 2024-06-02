@@ -532,20 +532,9 @@ void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU,int index) {
 	}
 }
 
-Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
-Microsoft::WRL::ComPtr<ID3D12PipelineState> graphicsPipelineState;
-
-Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceTriangle[2];
-Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceTriangle[2];
-
-
 // 三角形を描画する関数
-void DrawTriangle(ID3D12GraphicsCommandList* commandList, D3D12_VERTEX_BUFFER_VIEW vertexBufferView, D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU, int index) {
-	// ルートシグネチャを設定（必要に応じて）
-	commandList->SetGraphicsRootSignature(rootSignature.Get());
-
-	// パイプラインステートを設定
-	commandList->SetPipelineState(graphicsPipelineState.Get());
+void DrawTriangle(ID3D12GraphicsCommandList* commandList, D3D12_VERTEX_BUFFER_VIEW vertexBufferView, D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU,
+	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceTriangle, Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceTriangle) {
 
 	// 頂点バッファを設定
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
@@ -554,10 +543,10 @@ void DrawTriangle(ID3D12GraphicsCommandList* commandList, D3D12_VERTEX_BUFFER_VI
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// マテリアルCBufferを設定（必要に応じて）
-	commandList->SetGraphicsRootConstantBufferView(0, materialResourceTriangle[index]->GetGPUVirtualAddress());
+	commandList->SetGraphicsRootConstantBufferView(0, materialResourceTriangle->GetGPUVirtualAddress());
 
 	// TransformationMatrixCBufferを設定（必要に応じて）
-	commandList->SetGraphicsRootConstantBufferView(1, wvpResouceTriangle[index]->GetGPUVirtualAddress());
+	commandList->SetGraphicsRootConstantBufferView(1, wvpResouceTriangle->GetGPUVirtualAddress());
 
 	commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
@@ -929,7 +918,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		assert(false);
 	}
 	// バイナリを元に生成
-	//Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature = nullptr;
 	hr = device->CreateRootSignature(0, signatureBlob->GetBufferPointer(),
 		signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
 	assert(SUCCEEDED(hr));
@@ -1020,7 +1009,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	graphicsPipelineStateDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	// 実際に生成
-	//Microsoft::WRL::ComPtr<ID3D12PipelineState> graphicsPipelineState = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> graphicsPipelineState = nullptr;
 	hr = device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc,
 		IID_PPV_ARGS(&graphicsPipelineState));
 	assert(SUCCEEDED(hr));
@@ -1073,6 +1062,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Material* materialDataTriangle[2];
 	// データを書き込む
 	TransformationMatrix* wvpDataTriangle[2];
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceTriangle[2];
+	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceTriangle[2];
+
 
 	for (int index = 0; index < 2; index++) {
 
@@ -1245,6 +1238,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	bool addTriangle = false;
 
 
+
 	/*System::Initialize(kWindowTitle, 1280, 720);*/
 
 
@@ -1398,11 +1392,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-			DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[0], 0);
+			DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[0], materialResourceTriangle[0], wvpResouceTriangle[0]);
 
 			if (addTriangle) {
 
-				DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], 1);
+				DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], materialResourceTriangle[1], wvpResouceTriangle[1]);
 			}
 
 
