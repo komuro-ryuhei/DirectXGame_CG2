@@ -18,6 +18,14 @@ struct Vector3 final {
 	float x;
 	float y;
 	float z;
+
+	// += オペレーターのオーバーロード
+	Vector3& operator+=(const float other) {
+		x += other;
+		y += other;
+		z += other;
+		return *this;
+	}
 };
 
 /// <summary>
