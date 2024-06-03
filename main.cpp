@@ -1417,17 +1417,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 					DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], materialResourceTriangle[1], wvpResouceTriangle[1]);
 				}
-			} /*else {
-
-				for (int index = 0; index < kLimitTriangle; index++) {
-
-					transformTriangle[index] = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
-
-					DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[index], materialResourceTriangle[index], wvpResouceTriangle[index]);
-					
-					
-				}
-			}*/
+			}
 
 
 			// 実際のCommandListのImGuiの描画コマンドを積む
