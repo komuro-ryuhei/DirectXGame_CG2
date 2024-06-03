@@ -86,6 +86,8 @@ struct ModelData {
 	MaterialData material;
 };
 
+const uint32_t kLimitTriangle = 100;
+
 /*/////////////////////////////////////////////////////////////////////////////
 		Log関数
 *//////////////////////////////////////////////////////////////////////////////
@@ -493,11 +495,11 @@ ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filen
 
 
 // 変数宣言
-D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU1[2];
-D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2[2];
+D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU1[kLimitTriangle];
+D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2[kLimitTriangle];
 
 // ImGuiのUIを設定する関数
-void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU,int index) {
+void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU, int index) {
 	// Texture番号
 	static int textureNum = 0; // 静的変数として宣言して関数呼び出し間で値が保存されるようにする
 	// Textureの名前
@@ -523,12 +525,12 @@ void SetupUI(D3D12_GPU_DESCRIPTOR_HANDLE& textureSrvHandleGPU,int index) {
 	}
 
 	// ユーザーがテクスチャを選択したら、選択されたテクスチャに応じてDescriptor Handleを更新
-		if (textureNum == 0) {
-			// 画像1に対応するDescriptor Handleを設定
-			textureSrvHandleGPU = textureSrvHandleGPU1[index];
-		} else {
-			// 画像2に対応するDescriptor Handleを設定
-			textureSrvHandleGPU = textureSrvHandleGPU2[index];
+	if (textureNum == 0) {
+		// 画像1に対応するDescriptor Handleを設定
+		textureSrvHandleGPU = textureSrvHandleGPU1[index];
+	} else {
+		// 画像2に対応するDescriptor Handleを設定
+		textureSrvHandleGPU = textureSrvHandleGPU2[index];
 	}
 }
 
@@ -565,6 +567,11 @@ void UpdateWVPData(TransformationMatrix* wvpData, const Transformation& transfor
 
 	wvpData->WVP = worldViewProjectionMatrix;
 	wvpData->World = worldMatrix;
+}
+
+void TransformInit(Transformation transform) {
+
+	transform = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -1059,15 +1066,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	// マテリアルにデータを書き込む
-	Material* materialDataTriangle[2];
+	Material* materialDataTriangle[kLimitTriangle];
 	// データを書き込む
-	TransformationMatrix* wvpDataTriangle[2];
+	TransformationMatrix* wvpDataTriangle[kLimitTriangle];
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceTriangle[2];
-	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceTriangle[2];
+	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceTriangle[kLimitTriangle];
+	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceTriangle[kLimitTriangle];
 
 
-	for (int index = 0; index < 2; index++) {
+	for (int index = 0; index < kLimitTriangle; index++) {
 
 		// マテリアル用のリソースを作る
 		materialResourceTriangle[index] = CreateBufferResource(device.Get(), sizeof(Material));
@@ -1091,9 +1098,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	}
 
 
-	Transformation uvTransformTriangle[2];
+	Transformation uvTransformTriangle[kLimitTriangle];
 
-	for (int index = 0; index < 2; index++) {
+	for (int index = 0; index < kLimitTriangle; index++) {
 
 		uvTransformTriangle[index] = {
 		{1.0f,1.0f,1.0f},
@@ -1157,12 +1164,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	Transformation transform{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
 
-	Transformation transformTriangle[2];
+	Transformation transformTriangle[kLimitTriangle];
 
-	for (int index = 0; index < 2; index++) {
+	for (int index = 0; index < kLimitTriangle; index++) {
 
-		transformTriangle[index] = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f + index * -1.0f,0.0f,0.0f} };
+		transformTriangle[index] = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
 	}
+
+	transformTriangle[1].translate.x -= 1.0f;
 
 	// ImGuiの初期化
 	IMGUI_CHECKVERSION();
@@ -1206,15 +1215,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
 
 
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU[2];
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU[2];
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU[kLimitTriangle];
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU[kLimitTriangle];
 
 
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU1[2];
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU1[kLimitTriangle];
 
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2[2];
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2[kLimitTriangle];
 
-	for (int index = 0; index < 2; index++) {
+	for (int index = 0; index < kLimitTriangle; index++) {
 
 		textureSrvHandleCPU[index] = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 1);
 		textureSrvHandleGPU[index] = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 1);
@@ -1237,7 +1246,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	bool useMonsterBall = true;
 	bool addTriangle = false;
 
-
+	bool editTriangle = true;
 
 	/*System::Initialize(kWindowTitle, 1280, 720);*/
 
@@ -1258,57 +1267,63 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			// 開発用UIの処理
 
-			ImGui::Begin("Camera");
+			ImGui::Checkbox("Scene", &editTriangle);
 
-			ImGui::DragFloat3("cameraTranslation", &cameraTransform.translate.x, 0.01f);
+			if (editTriangle) {
 
-			ImGui::SliderAngle("CameraRotateX", &cameraTransform.rotate.x);
-			ImGui::SliderAngle("CameraRotateY", &cameraTransform.rotate.y);
-			ImGui::SliderAngle("CameraRotateZ", &cameraTransform.rotate.z);
+				ImGui::Begin("Camera");
 
-			ImGui::End();
+				ImGui::DragFloat3("cameraTranslation", &cameraTransform.translate.x, 0.01f);
 
-			ImGui::Begin("Triangle1");
+				ImGui::SliderAngle("CameraRotateX", &cameraTransform.rotate.x);
+				ImGui::SliderAngle("CameraRotateY", &cameraTransform.rotate.y);
+				ImGui::SliderAngle("CameraRotateZ", &cameraTransform.rotate.z);
 
-			ImGui::ColorEdit4("color", &materialDataTriangle[0]->color.x);
+				ImGui::End();
 
-			ImGui::SliderAngle("TriangleRotateX", &transformTriangle[0].rotate.x);
-			ImGui::SliderAngle("TriangleRotateY", &transformTriangle[0].rotate.y);
-			ImGui::SliderAngle("TriangleRotateZ", &transformTriangle[0].rotate.z);
+				ImGui::Begin("Triangle1");
 
-			ImGui::DragFloat3("TriangleTranslate", &transformTriangle[0].translate.x, 0.01f);
-			ImGui::DragFloat3("TriangleScale", &transformTriangle[0].scale.x, 0.01f);
+				ImGui::ColorEdit4("color", &materialDataTriangle[0]->color.x);
 
-			ImGui::DragFloat2("UVTranslate", &uvTransformTriangle[0].translate.x, 0.01f);
+				ImGui::SliderAngle("TriangleRotateX", &transformTriangle[0].rotate.x);
+				ImGui::SliderAngle("TriangleRotateY", &transformTriangle[0].rotate.y);
+				ImGui::SliderAngle("TriangleRotateZ", &transformTriangle[0].rotate.z);
 
-			ImGui::Checkbox("AddTriangle", &addTriangle);
+				ImGui::DragFloat3("TriangleTranslate", &transformTriangle[0].translate.x, 0.01f);
+				ImGui::DragFloat3("TriangleScale", &transformTriangle[0].scale.x, 0.01f);
 
-			SetupUI(textureSrvHandleGPU[0],0);
-
-			ImGui::End();
-
-
-			if (addTriangle) {
-
-				ImGui::Begin("Triangle2");
-
-				ImGui::ColorEdit4("color", &materialDataTriangle[1]->color.x);
-
-				ImGui::SliderAngle("TriangleRotateX", &transformTriangle[1].rotate.x);
-				ImGui::SliderAngle("TriangleRotateY", &transformTriangle[1].rotate.y);
-				ImGui::SliderAngle("TriangleRotateZ", &transformTriangle[1].rotate.z);
-
-				ImGui::DragFloat3("TriangleTranslate", &transformTriangle[1].translate.x, 0.01f);
-				ImGui::DragFloat3("TriangleScale", &transformTriangle[1].scale.x, 0.01f);
-
-				ImGui::DragFloat2("UVTranslate", &uvTransformTriangle[1].translate.x, 0.01f);
+				ImGui::DragFloat2("UVTranslate", &uvTransformTriangle[0].translate.x, 0.01f);
 
 				ImGui::Checkbox("AddTriangle", &addTriangle);
 
-				SetupUI(textureSrvHandleGPU[1],1);
+				SetupUI(textureSrvHandleGPU[0], 0);
 
 				ImGui::End();
+
+
+				if (addTriangle) {
+
+					ImGui::Begin("Triangle2");
+
+					ImGui::ColorEdit4("color", &materialDataTriangle[1]->color.x);
+
+					ImGui::SliderAngle("TriangleRotateX", &transformTriangle[1].rotate.x);
+					ImGui::SliderAngle("TriangleRotateY", &transformTriangle[1].rotate.y);
+					ImGui::SliderAngle("TriangleRotateZ", &transformTriangle[1].rotate.z);
+
+					ImGui::DragFloat3("TriangleTranslate", &transformTriangle[1].translate.x, 0.01f);
+					ImGui::DragFloat3("TriangleScale", &transformTriangle[1].scale.x, 0.01f);
+
+					ImGui::DragFloat2("UVTranslate", &uvTransformTriangle[1].translate.x, 0.01f);
+
+					ImGui::Checkbox("AddTriangle", &addTriangle);
+
+					SetupUI(textureSrvHandleGPU[1], 1);
+
+					ImGui::End();
+				}
 			}
+
 
 
 			// 指定した深度で画面全体をクリアする
@@ -1359,7 +1374,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			UpdateWVPData(wvpData, transform, cameraTransform, 1280, 720);
 
-			for (int index = 0; index < 2; index++) {
+			for (int index = 0; index < kLimitTriangle; index++) {
 
 				UpdateWVPData(wvpDataTriangle[index], transformTriangle[index], cameraTransform, 1280, 720);
 			}
@@ -1392,12 +1407,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-			DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[0], materialResourceTriangle[0], wvpResouceTriangle[0]);
+			if (editTriangle) {
 
-			if (addTriangle) {
+				DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[0], materialResourceTriangle[0], wvpResouceTriangle[0]);
 
-				DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], materialResourceTriangle[1], wvpResouceTriangle[1]);
-			}
+				TransformInit(transformTriangle[0]);
+
+				if (addTriangle) {
+
+					DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], materialResourceTriangle[1], wvpResouceTriangle[1]);
+				}
+			} /*else {
+
+				for (int index = 0; index < kLimitTriangle; index++) {
+
+					transformTriangle[index] = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
+
+					DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[index], materialResourceTriangle[index], wvpResouceTriangle[index]);
+					
+					
+				}
+			}*/
 
 
 			// 実際のCommandListのImGuiの描画コマンドを積む
