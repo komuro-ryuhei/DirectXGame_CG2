@@ -64,6 +64,7 @@ void DirectXCommon::TransitionBarrir() {
 }
 
 void DirectXCommon::InitializeDXGIDevice() {
+	HRESULT hr;
 
 	// DebugLayer
 #ifdef _DEBUG
@@ -89,7 +90,7 @@ void DirectXCommon::InitializeDXGIDevice() {
 	// 高い順に生成できたか試していく
 	for (size_t i = 0; i < _countof(featureLevels); ++i) {
 		// 採用したアダプターでデバイスを生成
-		hr = D3D12CreateDevice(useAdapter.Get(), featureLevels[i], IID_PPV_ARGS(&device));
+		hr = D3D12CreateDevice(useAdapter_.Get(), featureLevels[i], IID_PPV_ARGS(&device_));
 		// 指定した機能レベルでデバイスが生成できたか確認
 		if (SUCCEEDED(hr)) {
 			// 生成できたのでログ出力を行ってループを抜ける
@@ -98,14 +99,14 @@ void DirectXCommon::InitializeDXGIDevice() {
 		}
 	}
 	// デバイスの生成がうまくいかなかったので起動できない
-	assert(device != nullptr);
+	assert(device_ != nullptr);
 	Log("Complete create D3D12Device!!!\n");
 
 #ifdef _DEBUG
 
 	Microsoft::WRL::ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
 
-	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue)))) {
+	if (SUCCEEDED(device_->QueryInterface(IID_PPV_ARGS(&infoQueue)))) {
 		// ヤバイエラー時に止まる
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
 		// エラー時に止まる
