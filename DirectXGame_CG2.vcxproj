@@ -114,6 +114,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="eternals\imgui\imstb_rectpack.h" />
     <ClInclude Include="eternals\imgui\imstb_textedit.h" />
     <ClInclude Include="eternals\imgui\imstb_truetype.h" />
+    <ClInclude Include="Loger.h" />
     <ClInclude Include="Matrix.h" />
     <ClInclude Include="MyMath.h" />
     <ClInclude Include="System.h" />

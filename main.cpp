@@ -569,74 +569,71 @@ void UpdateWVPData(TransformationMatrix* wvpData, const Transformation& transfor
 	wvpData->World = worldMatrix;
 }
 
-void TransformInit(Transformation transform) {
-
-	transform = { {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
-}
-
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	D3DResourceLeakChecker leakCheck;
 
+	System::Initialize(kWindowTitle, 1280, 720);
+
 	// COMの初期化
-	CoInitializeEx(0, COINIT_MULTITHREADED);
+	//CoInitializeEx(0, COINIT_MULTITHREADED);
 
 
-	WNDCLASS wc{};
-	// ウインドウプロシージャ
-	wc.lpfnWndProc = WindowProc;
-	// ウインドウクラス名
-	wc.lpszClassName = L"CG2WindowClass";
-	// インスタンスハンドル
-	wc.hInstance = GetModuleHandle(nullptr);
-	//カーソル
-	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	//WNDCLASS wc{};
+	//// ウインドウプロシージャ
+	//wc.lpfnWndProc = WindowProc;
+	//// ウインドウクラス名
+	//wc.lpszClassName = L"CG2WindowClass";
+	//// インスタンスハンドル
+	//wc.hInstance = GetModuleHandle(nullptr);
+	////カーソル
+	//wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
-	// ウインドウクラスを登録する
-	RegisterClass(&wc);
+	//// ウインドウクラスを登録する
+	//RegisterClass(&wc);
 
-	// クライアント領域のサイズ
+	//// クライアント領域のサイズ
 	static const int32_t kWindowWidth = 1280;
 	static const int32_t kWindowHeight = 720;
 
-	// ウインドウサイズを表す構造体にクライアント領域を入れる
-	RECT wrc = { 0,0,kWindowWidth,kWindowHeight };
+	//// ウインドウサイズを表す構造体にクライアント領域を入れる
+	//RECT wrc = { 0,0,kWindowWidth,kWindowHeight };
 
-	// クライアント領域を元に実際のサイズにwrcを変更してもらう
-	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
+	//// クライアント領域を元に実際のサイズにwrcを変更してもらう
+	//AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
-	// ウインドの生成
-	HWND hwnd = CreateWindow(
-		wc.lpszClassName,
-		L"CG2",
-		WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		wrc.right - wrc.left,
-		wrc.bottom - wrc.top,
-		nullptr,
-		nullptr,
-		wc.hInstance,
-		nullptr
-	);
+	//// ウインドの生成
+	//HWND hwnd = CreateWindow(
+	//	wc.lpszClassName,
+	//	L"CG2",
+	//	WS_OVERLAPPEDWINDOW,
+	//	CW_USEDEFAULT,
+	//	CW_USEDEFAULT,
+	//	wrc.right - wrc.left,
+	//	wrc.bottom - wrc.top,
+	//	nullptr,
+	//	nullptr,
+	//	wc.hInstance,
+	//	nullptr
+	//);
 
-	// ウインドウを表示する
-	ShowWindow(hwnd, SW_SHOW);
+	//// ウインドウを表示する
+	//ShowWindow(hwnd, SW_SHOW);
 
 	// DebugLayer
-#ifdef _DEBUG
-
-	Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
-		// デバッグレイヤーを有効化する
-		debugController->EnableDebugLayer();
-
-		// さらにGPU側出もチェックを行えるようにする
-		debugController->SetEnableGPUBasedValidation(TRUE);
-	}
-
-#endif // DEBUG
+//#ifdef _DEBUG
+//
+//	Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
+//	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
+//		// デバッグレイヤーを有効化する
+//		debugController->EnableDebugLayer();
+//
+//		// さらにGPU側出もチェックを行えるようにする
+//		debugController->SetEnableGPUBasedValidation(TRUE);
+//	}
+//
+//#endif // DEBUG
 
 	/*/////////////////////////////////////////////////////////////////////////////
 		DXGIファクトリーの生成
@@ -1248,8 +1245,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	bool editTriangle = true;
 
-	/*System::Initialize(kWindowTitle, 1280, 720);*/
-
 
 	MSG msg{};
 	// ウインドウのxボタンが押されるまでループ
@@ -1410,13 +1405,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			if (editTriangle) {
 
 				DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[0], materialResourceTriangle[0], wvpResouceTriangle[0]);
-
-				TransformInit(transformTriangle[0]);
-
-				if (addTriangle) {
-
-					DrawTriangle(commandList.Get(), vertexBufferViewTriangle, textureSrvHandleGPU[1], materialResourceTriangle[1], wvpResouceTriangle[1]);
-				}
 			}
 
 
