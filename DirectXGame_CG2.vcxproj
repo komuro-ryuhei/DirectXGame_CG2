@@ -93,6 +93,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DirectXCommon.cpp" />
+    <ClCompile Include="DirectXCommonSample.cpp" />
     <ClCompile Include="eternals\imgui\imgui.cpp" />
     <ClCompile Include="eternals\imgui\imgui_demo.cpp" />
     <ClCompile Include="eternals\imgui\imgui_draw.cpp" />

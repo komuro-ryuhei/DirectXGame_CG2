@@ -32,6 +32,12 @@ void System::Initialize(const char* title, int width, int height) {
 		titleString.c_str(), WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME), width,
 		height);
 
+	// DirectXの初期化処理
 	dxCommon_ = DirectXCommon::GetInstance();
 	dxCommon_->Initialize(winApp_);
+}
+
+void System::Finalize() {
+
+	winApp_->TerminateGameWindow();
 }

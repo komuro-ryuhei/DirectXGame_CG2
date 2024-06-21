@@ -71,7 +71,7 @@ void WinApp::CreateGameWindow(const wchar_t* title, UINT windowStyle, int32_t cl
 	ShowWindow(hwnd_, SW_SHOW);
 }
 
-void TerminateGameWindow() {
+void WinApp::TerminateGameWindow() {
 
 	// COMの終了処理
 	CoUninitialize();
