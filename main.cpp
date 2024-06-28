@@ -413,7 +413,7 @@ ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filen
 		if (identifer == "v") {
 			Vector4 position;
 			s >> position.x >> position.y >> position.z;
-			position.x *= -1;
+			// position.x *= -1;
 			position.w = 1.0f;
 			positions.push_back(position);
 		} else if (identifer == "vt") {
@@ -840,9 +840,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// BlendStateの設定
 	D3D12_BLEND_DESC blendDesc{};
-	// すべての色要素を書き込む
-	blendDesc.RenderTarget[0].RenderTargetWriteMask =
-		D3D12_COLOR_WRITE_ENABLE_ALL;
+	// 全ての色要素を書き込む
+// ブレンドモードNone D3D12_COLOR_WRITE_ENABLE_ALLだけ
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 
 	// ResiterzerStateの設定
 	D3D12_RASTERIZER_DESC rasterizeDesc{};
@@ -942,7 +949,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 分割数
 	uint32_t kSubdivision = 16;
 
-	ModelData modelData = LoadOBJFile("Resources", "axis.obj");
+	ModelData modelData = LoadOBJFile("Resources", "plane.obj");
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(VertexData) * modelData.vertices.size());
 
@@ -1402,6 +1409,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::Checkbox("useLight", &materialData->enableLighting);
 			ImGui::SliderFloat3("LightDirector", &directionalLightData->direction.x, -1.0f, 1.0f);
 			ImGui::ColorEdit4("LightColor", (float*)&directionalLightData->color);
+			ImGui::DragFloat("intencity", &directionalLightData->intensity, 0.01f);
 
 			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
