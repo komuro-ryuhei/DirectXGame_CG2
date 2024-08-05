@@ -81,9 +81,7 @@ struct ModelData {
 
 struct Material {
 	Vector4 color;
-	bool enableLighting;
-	bool lmabertionReflectance;
-	bool halfLighting;
+	int enableLighting;
 	float padding[3];
 	Matrix4x4 uvTransform;
 };
@@ -433,32 +431,33 @@ ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filen
 	assert(file.is_open());
 
 	bool hasTexcoords = false;
+	int meshCount = 0; // メッシュの数をカウントする変数を追加
 
 	// ファイルを読み、ModelDataを構築
 	while (std::getline(file, line)) {
-		std::string identifer;
+		std::string identifier;
 		std::istringstream s(line);
-		s >> identifer; // 先頭の識別子を読む
+		s >> identifier; // 先頭の識別子を読む
 
-		// identiferに応じた処理
-		if (identifer == "v") {
+		// identifierに応じた処理
+		if (identifier == "v") {
 			Vector4 position;
 			s >> position.x >> position.y >> position.z;
 			position.x *= -1;
 			position.w = 1.0f;
 			positions.push_back(position);
-		} else if (identifer == "vt") {
+		} else if (identifier == "vt") {
 			hasTexcoords = true;
 			Vector2 texcoord;
 			s >> texcoord.x >> texcoord.y;
 			texcoord.y = 1.0f - texcoord.y;
 			texcoords.push_back(texcoord);
-		} else if (identifer == "vn") {
+		} else if (identifier == "vn") {
 			Vector3 normal;
 			s >> normal.x >> normal.y >> normal.z;
 			normal.x *= -1;
 			normals.push_back(normal);
-		} else if (identifer == "f") {
+		} else if (identifier == "f") {
 			// 面は三角形限定
 			VertexData triangle[3];
 			for (int32_t faceVertex = 0; faceVertex < 3; ++faceVertex) {
@@ -485,17 +484,21 @@ ModelData LoadOBJFile(const std::string& directoryPath, const std::string& filen
 			modelData.vertices.push_back(triangle[2]);
 			modelData.vertices.push_back(triangle[1]);
 			modelData.vertices.push_back(triangle[0]);
-		} else if (identifer == "mtllib") {
+		} else if (identifier == "mtllib") {
 			// materialTempleteLibraryファイルの名前を取得する
 			std::string materialFilename;
 			s >> materialFilename;
 			// 基本的にobjファイルと同一階層にmtlは存在させるので、ディレクトリ名とファイル名を渡す
 			modelData.material = LoadMaterialTemplateFile(directoryPath, materialFilename);
+			// 複数メッシュの検知
+		} else if (identifier == "o") {
+			// メッシュ数増加
+			++meshCount;
 		}
 	}
-
 	return modelData;
 }
+
 
 void ShowMaterialSettings(Material* material) {
 	// コンボボックスのオプションを作成します。
@@ -503,9 +506,9 @@ void ShowMaterialSettings(Material* material) {
 
 	// materialDataに基づいて現在の選択を決定します。
 	int currentSelection = 2; // デフォルトは "None"
-	if (material->lmabertionReflectance) {
+	if (material->enableLighting == 0) {
 		currentSelection = 0;
-	} else if (material->halfLighting) {
+	} else if (material->enableLighting == 1) {
 		currentSelection = 1;
 	}
 
@@ -517,19 +520,13 @@ void ShowMaterialSettings(Material* material) {
 		// 選択が変更された場合、materialDataを更新します。
 		switch (currentSelection) {
 		case 0:
-			material->enableLighting = true;
-			material->lmabertionReflectance = true;
-			material->halfLighting = false;
+			material->enableLighting = 0;
 			break;
 		case 1:
-			material->enableLighting = true;
-			material->lmabertionReflectance = false;
-			material->halfLighting = true;
+			material->enableLighting = 1;
 			break;
 		case 2:
-			material->enableLighting = false;
-			material->lmabertionReflectance = false;
-			material->halfLighting = false;
+			material->enableLighting = 2;
 			break;
 		}
 	}
@@ -1197,14 +1194,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialResourceModel->Map(0, nullptr, reinterpret_cast<void**>(&materialDataModel));
 	// 白を書きこむ
 	materialDataModel->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	materialDataModel->enableLighting = false;
-	materialDataModel->lmabertionReflectance = false;
-	materialDataModel->halfLighting = false;
+	materialDataModel->enableLighting = 2;
+	
 	materialDataModel->uvTransform = MakeIdentity4x4();
-
-	bool isLighting = false;
-	bool lmabertionReflectance = false;
-	bool halfLighting = false;
 
 
 	// マテリアル用のリソースを作る
@@ -1215,9 +1207,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	multiMeshMaterialResource->Map(0, nullptr, reinterpret_cast<void**>(&multiMeshMaterialData));
 	// 白を書きこむ
 	multiMeshMaterialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	multiMeshMaterialData->enableLighting = false;
-	multiMeshMaterialData->lmabertionReflectance = false;
-	multiMeshMaterialData->halfLighting = false;
+	multiMeshMaterialData->enableLighting = 2;
 	multiMeshMaterialData->uvTransform = MakeIdentity4x4();
 	
 
@@ -1229,9 +1219,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialResourceModelSuzanne->Map(0, nullptr, reinterpret_cast<void**>(&materialDataModelSuzanne));
 	// 白を書きこむ
 	materialDataModelSuzanne->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	materialDataModelSuzanne->enableLighting = true;
-	materialDataModelSuzanne->lmabertionReflectance = true;
-	materialDataModelSuzanne->halfLighting = false;
+	materialDataModelSuzanne->enableLighting = 1;
 	materialDataModelSuzanne->uvTransform = MakeIdentity4x4();
 
 
@@ -1243,9 +1231,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialResourceSphere->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSphere));
 	// 白を書きこむ
 	materialDataSphere->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	materialDataSphere->enableLighting = false;
-	materialDataSphere->lmabertionReflectance = false;
-	materialDataSphere->halfLighting = false;
+	materialDataSphere->enableLighting = 2;
 	materialDataSphere->uvTransform = MakeIdentity4x4();
 
 
@@ -1257,7 +1243,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
 	// 白を書きこむ
 	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	materialDataSprite->enableLighting = false;
+	materialDataSprite->enableLighting = 2;
 	materialDataSprite->uvTransform = MakeIdentity4x4();
 
 	Transform uvTransformSprite{
