@@ -6,11 +6,12 @@
 #include <format>
 #include <cassert>
 #include <wrl.h>
+#include <xaudio2.h>
 
 #include "MyMath.h"
 
-#include "fstream"
-#include "sstream"
+#include <fstream>
+#include <sstream>
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -26,6 +27,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
 #pragma comment(lib,"dxcompiler.lib")
+#pragma comment(lib,"xaudio2.lib")
 
 #include <DirectXTex.h>
 
@@ -80,6 +82,7 @@ struct ModelData {
 struct Material {
 	Vector4 color;
 	bool enableLighting;
+	bool lmabertionReflectance;
 	bool halfLighting;
 	float padding[3];
 	Matrix4x4 uvTransform;
@@ -500,26 +503,32 @@ void ShowMaterialSettings(Material* material) {
 
 	// materialDataに基づいて現在の選択を決定します。
 	int currentSelection = 2; // デフォルトは "None"
-	if (material->enableLighting) {
+	if (material->lmabertionReflectance) {
 		currentSelection = 0;
 	} else if (material->halfLighting) {
 		currentSelection = 1;
 	}
 
+	// ユニークなラベルを生成するために、固定のプレフィックスとmaterialのポインタを使います。
+	std::string label = "Lighting##" + std::to_string(reinterpret_cast<uintptr_t>(material));
+
 	// コンボボックスを描画します。
-	if (ImGui::Combo("Lighting", &currentSelection, lightingOptions, IM_ARRAYSIZE(lightingOptions))) {
+	if (ImGui::Combo(label.c_str(), &currentSelection, lightingOptions, IM_ARRAYSIZE(lightingOptions))) {
 		// 選択が変更された場合、materialDataを更新します。
 		switch (currentSelection) {
 		case 0:
 			material->enableLighting = true;
+			material->lmabertionReflectance = true;
 			material->halfLighting = false;
 			break;
 		case 1:
-			material->enableLighting = false;
+			material->enableLighting = true;
+			material->lmabertionReflectance = false;
 			material->halfLighting = true;
 			break;
 		case 2:
 			material->enableLighting = false;
+			material->lmabertionReflectance = false;
 			material->halfLighting = false;
 			break;
 		}
@@ -980,15 +989,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 分割数
 	uint32_t kSubdivision = 16;
 
-	ModelData modelData = LoadOBJFile("Resources", "multiMesh.obj");
+	ModelData modelData = LoadOBJFile("Resources", "bunny.obj");
+	ModelData multiMeshData = LoadOBJFile("Resources", "MultiMesh.obj");
 	ModelData modelSuzanneData = LoadOBJFile("Resources", "suzanne.obj");
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(VertexData) * modelData.vertices.size());
+	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceMultiMesh = CreateBufferResource(device.Get(), sizeof(VertexData) * multiMeshData.vertices.size());
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceSuzanne = CreateBufferResource(device.Get(), sizeof(VertexData) * modelSuzanneData.vertices.size());
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		VertexBufferViewを生成
-	*//////////////////////////////////////////////////////////////////////////////
+	/*///////////////////////////////////////////////////////////////////////////////*/
+	// VertexBufferViewを生成(bunny)
+	
 	// 頂点バッファビューを作成
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	// リソースの先頭のアドレスから使う
@@ -999,9 +1010,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexBufferView.StrideInBytes = sizeof(VertexData);
 
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		3角形の頂点の情報
-	*//////////////////////////////////////////////////////////////////////////////
+	/*///////////////////////////////////////////////////////////////////////////////*/
+	// 3角形の頂点の情報(bunny)
+	
 	// 頂点リソースにデータを書き込む
 	VertexData* vertexData = nullptr;
 	// 書き込むアドレスを取得
@@ -1010,9 +1021,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size());
 
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		VertexBufferViewを生成
-	*//////////////////////////////////////////////////////////////////////////////
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// 頂点バッファビューを作成(MultiMesh)
+
+	D3D12_VERTEX_BUFFER_VIEW vBVMultiMesh{};
+	// リソースの先頭のアドレスから使う
+	vBVMultiMesh.BufferLocation = vertexResourceMultiMesh->GetGPUVirtualAddress();
+	// 使用するリソースのサイズは頂点3つ分のサイズ
+	vBVMultiMesh.SizeInBytes = UINT(sizeof(VertexData) * multiMeshData.vertices.size());
+	// 1頂点当あたりのサイズ
+	vBVMultiMesh.StrideInBytes = sizeof(VertexData);
+
+
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// 3角形の頂点の情報(MultiMesh)
+	
+	// 頂点リソースにデータを書き込む
+	VertexData* multiMeshVertexData = nullptr;
+	// 書き込むアドレスを取得
+	vertexResourceMultiMesh->Map(0, nullptr, reinterpret_cast<void**>(&multiMeshVertexData));
+	// 頂点データにリソースをコピー
+	std::memcpy(multiMeshVertexData, multiMeshData.vertices.data(), sizeof(VertexData)* multiMeshData.vertices.size());
+
+
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// VertexBufferViewを生成(Suzanne)
+
 	// 頂点バッファビューを作成
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSuzanne{};
 	// リソースの先頭のアドレスから使う
@@ -1023,20 +1057,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexBufferViewSuzanne.StrideInBytes = sizeof(VertexData);
 
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		3角形の頂点の情報
-	*//////////////////////////////////////////////////////////////////////////////
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// 3角形の頂点の情報(Suzanne)
+	
 	// 頂点リソースにデータを書き込む
 	VertexData* vertexDataSuzanne = nullptr;
 	// 書き込むアドレスを取得
 	vertexResourceSuzanne->Map(0, nullptr, reinterpret_cast<void**>(&vertexDataSuzanne));
 	// 頂点データにリソースをコピー
-	std::memcpy(vertexDataSuzanne, modelSuzanneData.vertices.data(), sizeof(VertexData)* modelSuzanneData.vertices.size());
+	std::memcpy(vertexDataSuzanne, modelSuzanneData.vertices.data(), sizeof(VertexData) * modelSuzanneData.vertices.size());
 
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		スプライトの頂点の情報
-	*//////////////////////////////////////////////////////////////////////////////
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// スプライトの頂点の情報
+	
 	// Sprite用の頂点リソースの作成
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceSprite = CreateBufferResource(device.Get(), sizeof(VertexData) * 4);
 
@@ -1108,9 +1142,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	indexDataSprite[4] = 3;
 	indexDataSprite[5] = 2;
 
-	/*/////////////////////////////////////////////////////////////////////////////
-		球の頂点の情報
-	*//////////////////////////////////////////////////////////////////////////////
+	/*/////////////////////////////////////////////////////////////////////////////*/
+	// 球の頂点の情報
+	
 	// Sphere用の頂点リソースの作成
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceSphere = CreateBufferResource(device.Get(), sizeof(VertexData) * 1536);
 	// 頂点バッファービューを作成する
@@ -1164,8 +1198,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 白を書きこむ
 	materialDataModel->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialDataModel->enableLighting = false;
+	materialDataModel->lmabertionReflectance = false;
 	materialDataModel->halfLighting = false;
 	materialDataModel->uvTransform = MakeIdentity4x4();
+
+	bool isLighting = false;
+	bool lmabertionReflectance = false;
+	bool halfLighting = false;
+
+
+	// マテリアル用のリソースを作る
+	Microsoft::WRL::ComPtr<ID3D12Resource> multiMeshMaterialResource = CreateBufferResource(device.Get(), sizeof(Material));
+	// マテリアルにデータを書き込む
+	Material* multiMeshMaterialData = nullptr;
+	// 書き込むためのアドレスを取得
+	multiMeshMaterialResource->Map(0, nullptr, reinterpret_cast<void**>(&multiMeshMaterialData));
+	// 白を書きこむ
+	multiMeshMaterialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	multiMeshMaterialData->enableLighting = false;
+	multiMeshMaterialData->lmabertionReflectance = false;
+	multiMeshMaterialData->halfLighting = false;
+	multiMeshMaterialData->uvTransform = MakeIdentity4x4();
+	
 
 	// マテリアル用のリソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResourceModelSuzanne = CreateBufferResource(device.Get(), sizeof(Material));
@@ -1176,6 +1230,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 白を書きこむ
 	materialDataModelSuzanne->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialDataModelSuzanne->enableLighting = true;
+	materialDataModelSuzanne->lmabertionReflectance = true;
 	materialDataModelSuzanne->halfLighting = false;
 	materialDataModelSuzanne->uvTransform = MakeIdentity4x4();
 
@@ -1189,7 +1244,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 白を書きこむ
 	materialDataSphere->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialDataSphere->enableLighting = false;
-	materialDataSphere->enableLighting = false;
+	materialDataSphere->lmabertionReflectance = false;
+	materialDataSphere->halfLighting = false;
 	materialDataSphere->uvTransform = MakeIdentity4x4();
 
 
@@ -1210,7 +1266,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{0.0f,0.0f,0.0f},
 	};
 
-	// wvp用のリソースを作る
+	// wvp用のリソースを作る(bunny)
 	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouce = CreateBufferResource(device.Get(), sizeof(TransformationMatrix));
 	// データを書き込む
 	TransformationMatrix* wvpData = nullptr;
@@ -1219,7 +1275,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 単位行列を書き込んでおく
 	wvpData->WVP = MakeIdentity4x4();
 
-	// wvp用のリソースを作る
+
+	// wvp用のリソースを作る(MultiMesh)
+	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceMultiMesh = CreateBufferResource(device.Get(), sizeof(TransformationMatrix));
+	// データを書き込む
+	TransformationMatrix* wvpDataMultiMesh = nullptr;
+	// 書き込むためのアドレスを取得
+	wvpResouceMultiMesh->Map(0, nullptr, reinterpret_cast<void**>(&wvpDataMultiMesh));
+	// 単位行列を書き込んでおく
+	wvpDataMultiMesh->WVP = MakeIdentity4x4();
+
+
+	// wvp用のリソースを作る(Suzanne)
 	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResouceSuzanne = CreateBufferResource(device.Get(), sizeof(TransformationMatrix));
 	// データを書き込む
 	TransformationMatrix* wvpDataSuzanne = nullptr;
@@ -1289,14 +1356,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.top = 0;
 	scissorRect.bottom = kWindowHeight;
 
+	// カメラのSRT
 	Transform cameraTransform{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,-10.0f} };
-
+	// ObjのSRT
 	Transform transformObj{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
-
+	// MultiMeshのSRT
+	Transform transformMultiMesh{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
+	// SphereのSRT
 	Transform transformSphere{ {1.0f,1.0f,1.0f}, {0.0f,0.0f,0.0f}, {0.0f,0.0f,0.0f} };
-
+	// SpriteのSRT
 	Transform transformSprite{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
-
+	// SuzanneのSRT
 	Transform transformSuzanne{ {1.0f,1.0f,1.0f},{0.0f,3.0f,0.0f},{0.0f,0.0f,0.0f} };
 
 	// ImGuiの初期化
@@ -1312,47 +1382,60 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 
-	// Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexture("./Resources/uvChecker.png");
-	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
-	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = CreateTextureResource(device.Get(), metadata);
-	UploadTextureData(textureResource.Get(), mipImages);
+	// Textureを読んで転送する(Sphere1つ目)
+	DirectX::ScratchImage sphereImages = LoadTexture("./Resources/uvChecker.png");
+	const DirectX::TexMetadata& sphereMetadata = sphereImages.GetMetadata();
+	Microsoft::WRL::ComPtr<ID3D12Resource> sphereTextureResource = CreateTextureResource(device.Get(), sphereMetadata);
+	UploadTextureData(sphereTextureResource.Get(), sphereImages);
 
-	// Textureを読んで転送する
-	DirectX::ScratchImage mipImages3 = LoadTexture("./Resources/monsterBall.png");
-	const DirectX::TexMetadata& metadata3 = mipImages3.GetMetadata();
-	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource3 = CreateTextureResource(device.Get(), metadata3);
-	UploadTextureData(textureResource3.Get(), mipImages3);
+	// Textureを読んで転送する(Sphere2つ目)
+	DirectX::ScratchImage sphereImages2 = LoadTexture("./Resources/monsterBall.png");
+	const DirectX::TexMetadata& sphereMetadata2 = sphereImages2.GetMetadata();
+	Microsoft::WRL::ComPtr<ID3D12Resource> sphereTextureResource2 = CreateTextureResource(device.Get(), sphereMetadata2);
+	UploadTextureData(sphereTextureResource2.Get(), sphereImages2);
 
 
-	// 2枚目のTextureを読んで転送する
-	DirectX::ScratchImage mipImages2 = LoadTexture(modelData.material.textureFilePath);
-	const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
-	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource2 = CreateTextureResource(device.Get(), metadata2);
-	UploadTextureData(textureResource2.Get(), mipImages2);
+	// bunnyのTextureを読んで転送する
+	DirectX::ScratchImage objMipImages = LoadTexture(modelData.material.textureFilePath);
+	const DirectX::TexMetadata& objMetadata = objMipImages.GetMetadata();
+	Microsoft::WRL::ComPtr<ID3D12Resource> objTextureResource = CreateTextureResource(device.Get(), objMetadata);
+	UploadTextureData(objTextureResource.Get(), objMipImages);
+
+	// bunnyのTextureを読んで転送する
+	DirectX::ScratchImage multiMeshMipImages = LoadTexture(multiMeshData.material.textureFilePath);
+	const DirectX::TexMetadata& multiMeshMetadata = multiMeshMipImages.GetMetadata();
+	Microsoft::WRL::ComPtr<ID3D12Resource> multiMeshTextureResource = CreateTextureResource(device.Get(), multiMeshMetadata);
+	UploadTextureData(multiMeshTextureResource.Get(), multiMeshMipImages);
 
 
 	// metaDataを基にSRVの設定
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Format = metadata.format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
-
-	// 3つ目のmetaDataを基にSRVの設定
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc3{};
-	srvDesc3.Format = metadata3.format;
-	srvDesc3.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc3.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc3.Texture2D.MipLevels = UINT(metadata3.mipLevels);
-
+	D3D12_SHADER_RESOURCE_VIEW_DESC sphereSrvDesc{};
+	sphereSrvDesc.Format = sphereMetadata.format;
+	sphereSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	sphereSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	sphereSrvDesc.Texture2D.MipLevels = UINT(sphereMetadata.mipLevels);
 
 	// 2つ目のmetaDataを基にSRVの設定
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
-	srvDesc2.Format = metadata2.format;
-	srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
+	D3D12_SHADER_RESOURCE_VIEW_DESC sphereSrvDesc2{};
+	sphereSrvDesc2.Format = sphereMetadata2.format;
+	sphereSrvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	sphereSrvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	sphereSrvDesc2.Texture2D.MipLevels = UINT(sphereMetadata2.mipLevels);
+
+
+	// ObjのmetaDataを基にSRVの設定
+	D3D12_SHADER_RESOURCE_VIEW_DESC objSrvDesc{};
+	objSrvDesc.Format = objMetadata.format;
+	objSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	objSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	objSrvDesc.Texture2D.MipLevels = UINT(objMetadata.mipLevels);
+
+	// MultiMeshのmetaDataを基にSRVの設定
+	D3D12_SHADER_RESOURCE_VIEW_DESC multiMeshSrvDesc{};
+	multiMeshSrvDesc.Format = objMetadata.format;
+	multiMeshSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	multiMeshSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	multiMeshSrvDesc.Texture2D.MipLevels = UINT(multiMeshMetadata.mipLevels);
 
 
 	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 1);
@@ -1364,13 +1447,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU3 = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU3 = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 3);
 
-	// SRVの生成
-	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, textureSrvHandleCPU);
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU4 = GetCPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 4);
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU4 = GetGPUDescriptorHandle(srvDescriptorHeap, descriptorSizeSRV, 4);
 
-	// SRVの生成
-	device->CreateShaderResourceView(textureResource2.Get(), &srvDesc2, textureSrvHandleCPU2);
+	// SRVの生成(Sphere)
+	device->CreateShaderResourceView(sphereTextureResource.Get(), &sphereSrvDesc, textureSrvHandleCPU);
+	// 2枚目(Sphere)
+	device->CreateShaderResourceView(sphereTextureResource2.Get(), &sphereSrvDesc2, textureSrvHandleCPU3);
 
-	device->CreateShaderResourceView(textureResource3.Get(), &srvDesc3, textureSrvHandleCPU3);
+
+	// SRVの生成(bunny)
+	device->CreateShaderResourceView(objTextureResource.Get(), &objSrvDesc, textureSrvHandleCPU2);
+
+	// SRVの生成(multiMesh)
+	device->CreateShaderResourceView(multiMeshTextureResource.Get(), &multiMeshSrvDesc, textureSrvHandleCPU4);
 
 
 	// 球
@@ -1453,12 +1543,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	}
 
 
+	Microsoft::WRL::ComPtr<IXAudio2> xAudio2;
+	IXAudio2MasteringVoice* masterVoice;
+
+	HRESULT result = XAudio2Create(&xAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+	result = xAudio2->CreateMasteringVoice(&masterVoice);
+
+
 	// 描画管理フラグ
-	bool useMonsterBall = true; // 
-	bool isDrawSphere = false;
-	bool isDrawSprite = false;
-	bool isDrawObj = false;
-	bool isDrawSuzanne = false;
+	bool useMonsterBall = true;   // Sphereの画像変更フラグ
+	bool isDrawSphere = false;    // Sphere描画フラグ
+	bool isDrawSprite = false;    // Sprite描画フラグ
+	bool isDrawObj = false;       // Obj描画フラグ
+	bool isDrawMultiMesh = false; // MulyiMeshの描画フラグ
+	bool isDrawSuzanne = false;   // Suzanne描画フラグ
 
 
 	/*System::Initialize(kWindowTitle, 1280, 720);*/
@@ -1479,8 +1577,91 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			// 開発用UIの処理
 
-			// カメラのImGui
-			ImGui::Begin("Camera");
+			/*///////////////////////////////////////////////////////////////////*/
+			// ドロップダウンでのフラグ管理のImGui
+
+			ImGui::Begin("Setting");
+
+			if (ImGui::BeginCombo("DrawObject", "Select")) {
+				if (ImGui::Selectable("Sprite", isDrawSprite)) {
+					isDrawSprite = true;
+					isDrawSphere = false;
+					isDrawObj = false;
+					isDrawMultiMesh = false;
+					isDrawSuzanne = false;
+				}
+				if (ImGui::Selectable("Sphere", isDrawSphere)) {
+					isDrawSprite = false;
+					isDrawSphere = true;
+					isDrawObj = false;
+					isDrawMultiMesh = false;
+					isDrawSuzanne = false;
+				}
+				if (ImGui::Selectable("Bunny", isDrawObj)) {
+					isDrawSprite = false;
+					isDrawSphere = false;
+					isDrawObj = true;
+					isDrawMultiMesh = false;
+					isDrawSuzanne = false;
+				}
+				if (ImGui::Selectable("MultiMesh", isDrawMultiMesh)) {
+					isDrawSprite = false;
+					isDrawSphere = false;
+					isDrawObj = false;
+					isDrawMultiMesh = true;
+					isDrawSuzanne = false;
+				}
+				if (ImGui::Selectable("Suzanne", isDrawSuzanne)) {
+					isDrawSprite = false;
+					isDrawSphere = false;
+					isDrawObj = false;
+					isDrawMultiMesh = false;
+					isDrawSuzanne = true;
+				}
+				ImGui::EndCombo();
+			}
+
+
+			/*///////////////////////////////////////////////////////////////////*/
+			// ボタンでのフラグ管理のImGui
+
+			ImGui::Begin("Setting");
+
+			if (!isDrawSprite && ImGui::Button("SpriteDraw")) {
+				isDrawSprite = true;
+			}
+			if (isDrawSprite && ImGui::Button("SpriteUnDraw")) {
+				isDrawSprite = false;
+			}
+			if (!isDrawSphere && ImGui::Button("SphereDraw")) {
+				isDrawSphere = true;
+			}
+			if (isDrawSphere && ImGui::Button("SphereUnDraw")) {
+				isDrawSphere = false;
+			}
+			if (!isDrawObj && ImGui::Button("BunnyDraw")) {
+				isDrawObj = true;
+			}
+			if (isDrawObj && ImGui::Button("BunnyUnDraw")) {
+				isDrawObj = false;
+			}
+			if (!isDrawMultiMesh && ImGui::Button("MultiMeshDraw")) {
+				isDrawMultiMesh = true;
+			}
+			if (isDrawMultiMesh && ImGui::Button("MultiMeshUnDraw")) {
+				isDrawMultiMesh = false;
+			}
+			if (!isDrawSuzanne && ImGui::Button("SuzanneDraw")) {
+				isDrawSuzanne = true;
+			}
+			if (isDrawSuzanne && ImGui::Button("SuzanneUnDraw")) {
+				isDrawSuzanne = false;
+			}
+			ImGui::Separator();
+
+
+			/*///////////////////////////////////////////////////////////////////*/
+			// カメラImGui
 
 			ImGui::DragFloat3("cameraTranslation", &cameraTransform.translate.x, 0.01f);
 
@@ -1488,53 +1669,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::SliderAngle("CameraRotateY", &cameraTransform.rotate.y);
 			ImGui::SliderAngle("CameraRotateZ", &cameraTransform.rotate.z);
 
+			ImGui::Separator();
+
 			ImGui::End();
+			
 
-			// UVTransformのImGui
+			/*///////////////////////////////////////////////////////////////////*/
+			// ライトのImGui
 
-			if (isDrawObj) {
-
-				ImGui::Begin("Obj");
-
-				ImGui::SliderFloat3("OBJTranslate", &transformObj.translate.x, -10.0f, 10.0f);
-				ImGui::SliderAngle("OBJRotateX", &transformObj.rotate.x);
-				ImGui::SliderAngle("OBJRotateY", &transformObj.rotate.y);
-				ImGui::SliderAngle("OBJRotateZ", &transformObj.rotate.z);
-				ImGui::ColorEdit4("ObjColor", (float*)&materialDataModel->color);
-				ShowMaterialSettings(materialDataModel);
-
-				ImGui::End();
-			}
-
-			if (isDrawSuzanne) {
-
-				ImGui::Begin("Suzanne");
-
-				ImGui::SliderFloat3("SuzanneTranslate", &transformSuzanne.translate.x, -10.0f, 10.0f);
-				ImGui::SliderAngle("SuzanneRotateX", &transformSuzanne.rotate.x);
-				ImGui::SliderAngle("SuzanneRotateY", &transformSuzanne.rotate.y);
-				ImGui::SliderAngle("SuzanneRotateZ", &transformSuzanne.rotate.z);
-				ImGui::ColorEdit4("SuzanneColor", (float*)&materialDataModelSuzanne->color);
-				ShowMaterialSettings(materialDataModelSuzanne);
-
-				ImGui::End();
-			}
-
-			if (isDrawSphere) {
-
-				ImGui::Begin("Sphere");
-
-				ImGui::SliderFloat3("SphereTranslate", &transformSphere.translate.x, -10.0f, 10.0f);
-				ImGui::SliderAngle("SphereRotateX", &transformSphere.rotate.x);
-				ImGui::SliderAngle("SphereRotateY", &transformSphere.rotate.y);
-				ImGui::SliderAngle("SphereRotateZ", &transformSphere.rotate.z);
-				ImGui::Checkbox("useMonsterBall", &useMonsterBall);
-				ShowMaterialSettings(materialDataSphere);
-
-				ImGui::End();
-			}
-
-			ImGui::Begin("Light");
+			ImGui::Begin("Setting");
 
 			ImGui::SliderFloat3("LightDirector", &directionalLightData->direction.x, -1.0f, 1.0f);
 			ImGui::ColorEdit4("LightColor", (float*)&directionalLightData->color);
@@ -1542,25 +1685,107 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::End();
 
-			if (isDrawSprite) {
+			ImGui::Separator();
 
-				ImGui::Begin("UVTransform");
 
-				ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
-				ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
-				ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
+			/*///////////////////////////////////////////////////////////////////*/
+			// ObjのImGui
+
+			if (isDrawObj) {
+
+				ImGui::Begin("Setting");
+
+				ImGui::SliderFloat3("OBJScale", &transformObj.scale.x, 0.0f, 5.0f);
+				ImGui::SliderAngle("OBJRotateX", &transformObj.rotate.x);
+				ImGui::SliderAngle("OBJRotateY", &transformObj.rotate.y);
+				ImGui::SliderAngle("OBJRotateZ", &transformObj.rotate.z);
+				ImGui::SliderFloat3("OBJTranslate", &transformObj.translate.x, -10.0f, 10.0f);
+				ImGui::ColorEdit4("ObjColor", (float*)&materialDataModel->color);
+				ShowMaterialSettings(materialDataModel);
 
 				ImGui::End();
 			}
 
-			ImGui::Begin("Setting");
 
-			ImGui::Checkbox("DrawSphere", &isDrawSphere);
-			ImGui::Checkbox("DrawSprite", &isDrawSprite);
-			ImGui::Checkbox("DrawObj", &isDrawObj);
-			ImGui::Checkbox("DrawSuzanne", &isDrawSuzanne);
+			/*///////////////////////////////////////////////////////////////////*/
+			// MultiMeshのImGui
+
+			if (isDrawMultiMesh) {
+
+				ImGui::Begin("Setting");
+
+				ImGui::SliderFloat3("MultiMeshScale", &transformMultiMesh.scale.x, 0.0f, 5.0f);
+				ImGui::SliderAngle("MultiMeshRotateX", &transformMultiMesh.rotate.x);
+				ImGui::SliderAngle("MultiMeshRotateY", &transformMultiMesh.rotate.y);
+				ImGui::SliderAngle("MultiMeshRotateZ", &transformMultiMesh.rotate.z);
+				ImGui::SliderFloat3("MultiMeshTranslate", &transformMultiMesh.translate.x, -10.0f, 10.0f);
+				ImGui::ColorEdit4("MultiMeshColor", (float*)&multiMeshMaterialData->color);
+				ShowMaterialSettings(multiMeshMaterialData);
+
+				ImGui::End();
+			}
+
+
+			/*///////////////////////////////////////////////////////////////////*/
+			// SuzanneのImGui
+
+			if (isDrawSuzanne) {
+
+				ImGui::Begin("Setting");
+
+				ImGui::SliderFloat3("SuzanneScale", &transformSuzanne.scale.x, 0.0f, 5.0f);
+				ImGui::SliderAngle("SuzanneRotateX", &transformSuzanne.rotate.x);
+				ImGui::SliderAngle("SuzanneRotateY", &transformSuzanne.rotate.y);
+				ImGui::SliderAngle("SuzanneRotateZ", &transformSuzanne.rotate.z);
+				ImGui::SliderFloat3("SuzanneTranslate", &transformSuzanne.translate.x, -10.0f, 10.0f);
+				ImGui::ColorEdit4("SuzanneColor", (float*)&materialDataModelSuzanne->color);
+				ShowMaterialSettings(materialDataModelSuzanne);
+
+				ImGui::End();
+			}
+
+
+			/*///////////////////////////////////////////////////////////////////*/
+			// SphereのImGui
+
+			if (isDrawSphere) {
+
+				ImGui::Begin("Setting");
+
+				ImGui::SliderFloat3("SphereScale", &transformSphere.scale.x, 0.0f, 5.0f);
+				ImGui::SliderAngle("SphereRotateX", &transformSphere.rotate.x);
+				ImGui::SliderAngle("SphereRotateY", &transformSphere.rotate.y);
+				ImGui::SliderAngle("SphereRotateZ", &transformSphere.rotate.z);
+				ImGui::SliderFloat3("SphereTranslate", &transformSphere.translate.x, -10.0f, 10.0f);
+				ImGui::Checkbox("useMonsterBall", &useMonsterBall);
+				ShowMaterialSettings(materialDataSphere);
+
+				ImGui::End();
+			}
+
+
+			/*///////////////////////////////////////////////////////////////////*/
+			// SpriteのImGui
+
+			if (isDrawSprite) {
+
+				ImGui::Begin("Setting");
+
+				ImGui::DragFloat2("SpriteScale", &transformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+				ImGui::SliderAngle("SpriteRotateX", &transformSprite.rotate.x);
+				ImGui::SliderAngle("SpriteRotateY", &transformSprite.rotate.y);
+				ImGui::SliderAngle("SpriteRotateZ", &transformSprite.rotate.z);
+				ImGui::DragFloat3("SpriteTranslate", &transformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+
+				ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+				ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
+				ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+
+				ImGui::End();
+			}
 
 			ImGui::End();
+
 
 			// 指定した深度で画面全体をクリアする
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
@@ -1608,7 +1833,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::Render();
 
 
-			// 
+			// Obj用のWorldViewProjectionMatrixを作る
 			Matrix4x4 worldMatrix = MakeAffineMatrix(transformObj.scale, transformObj.rotate, transformObj.translate);
 			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 			Matrix4x4 viewMatrix = Inverse4x4(cameraMatrix);
@@ -1618,6 +1843,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			wvpData->World = worldMatrix;
 
 
+			// MultiMesh用のWorldViewProjectionMatrixを作る
+			Matrix4x4 worldMatrixMultiMesh = MakeAffineMatrix(transformMultiMesh.scale, transformMultiMesh.rotate, transformMultiMesh.translate);
+			Matrix4x4 cameraMatrixMultiMesh = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+			Matrix4x4 viewMatrixMultiMesh = Inverse4x4(cameraMatrixMultiMesh);
+			Matrix4x4 projectionMatrixMultiMesh = MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
+			Matrix4x4 worldViewProjectionMatrixMultiMesh = Multiply(worldMatrixMultiMesh, Multiply(viewMatrixMultiMesh, projectionMatrixMultiMesh));
+			wvpDataMultiMesh->WVP = worldViewProjectionMatrixMultiMesh;
+			wvpDataMultiMesh->World = worldMatrixMultiMesh;
+
+
+			// Suzanne用のWorldViewProjectionMatrixを作る
 			Matrix4x4 worldMatrixSuzanne = MakeAffineMatrix(transformSuzanne.scale, transformSuzanne.rotate, transformSuzanne.translate);
 			Matrix4x4 cameraMatrixSuzanne = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 			Matrix4x4 viewMatrixSuzanne = Inverse4x4(cameraMatrixSuzanne);
@@ -1680,6 +1916,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				commandList->DrawIndexedInstanced(1536, 1, 0, 0, 0);
 			}
 
+
 			// マテリアルCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
 			// 
@@ -1696,15 +1933,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 			}
 
+
 			commandList->SetGraphicsRootConstantBufferView(0, materialResourceModel->GetGPUVirtualAddress());
 			// TransformationMatrixCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResouce->GetGPUVirtualAddress());
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // VBVを設定
 
 			if (isDrawObj) {
-				// Objの描画
+				// Objの描画(今はbunny)
 				commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
 			}
+
+
+			commandList->SetGraphicsRootConstantBufferView(0, multiMeshMaterialResource->GetGPUVirtualAddress());
+			// TransformationMatrixCBufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(1, wvpResouceMultiMesh->GetGPUVirtualAddress());
+			commandList->IASetVertexBuffers(0, 1, &vBVMultiMesh); // VBVを設定
+
+			if (isDrawMultiMesh) {
+				// MultiMeshの描画
+				commandList->DrawInstanced(UINT(multiMeshData.vertices.size()), 1, 0, 0);
+			}
+
 
 			commandList->SetGraphicsRootConstantBufferView(0, materialResourceModelSuzanne->GetGPUVirtualAddress());
 			// TransformationMatrixCBufferの場所を設定
